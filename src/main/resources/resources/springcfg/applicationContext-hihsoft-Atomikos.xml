@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+       http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc.xsd
+       http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd">
+	<aop:aspectj-autoproxy />
+	<bean id="springContextHolder"
+		class="com.hihsoft.framework.core.utils.SpringContextHolder"
+		lazy-init="false" />
+	<bean id="propertyConfigurerForProject_framework"
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="order" value="1" />
+		<property name="ignoreUnresolvablePlaceholders" value="true" />
+		<property name="location">
+			<value>classpath:jdbc.properties</value>
+		</property>
+	</bean>
+	<bean id="db1_dataSource" class="com.atomikos.jdbc.AtomikosDataSourceBean"
+		init-method="init" destroy-method="close">
+		<property name="uniqueResourceName" value="db1_dataSource" />
+		<property name="xaDataSourceClassName"
+			value="com.mysql.jdbc.jdbc2.optional.MysqlXADataSource" />
+
+		<property name="xaProperties">
+			<props>
+				<prop key="user">${jdbc.username}</prop>
+				<prop key="password">${jdbc.password}</prop>
+				<prop key="URL">${jdbc.url}</prop>
+			</props>
+		</property>
+		<!-- 连接池里面连接的个数? -->
+		<property name="poolSize" value="3" />
+	</bean>
+
+	<bean id="db2_dataSource" class="com.atomikos.jdbc.AtomikosDataSourceBean"
+		init-method="init" destroy-method="close">
+		<property name="uniqueResourceName" value="db2_dataSource" />
+		<property name="xaDataSourceClassName"
+			value="com.mysql.jdbc.jdbc2.optional.MysqlXADataSource" />
+		<property name="xaProperties">
+			<props>
+				<prop key="user">${jdbc.username.hihsoft}</prop>
+				<prop key="password">${jdbc.password.hihsoft}</prop>
+				<prop key="URL">${jdbc.url.hihsoft}</prop>
+			</props>
+		</property>
+		<!-- 连接池里面连接的个数? -->
+		<property name="poolSize" value="3" />
+	</bean>
+	<!-- enable transaction demarcation with annotations -->
+	<tx:annotation-driven transaction-manager="jtaTransactionManager"
+		proxy-target-class="false" />
+
+	<!-- atomikos事务管理器 -->
+	<bean id="atomikosTransactionManager" class="com.atomikos.icatch.jta.UserTransactionManager"
+		init-method="init" destroy-method="close">
+		<property name="forceShutdown" value="true" />
+	</bean>
+
+	<bean id="atomikosUserTransaction" class="com.atomikos.icatch.jta.UserTransactionImp">
+		<property name="transactionTimeout" value="300" />
+	</bean>
+
+	<!-- spring 事务管理器 -->
+	<bean id="jtaTransactionManager"
+		class="org.springframework.transaction.jta.JtaTransactionManager">
+		<property name="transactionManager" ref="atomikosTransactionManager" />
+		<property name="userTransaction" ref="atomikosUserTransaction" />
+		<property name="allowCustomIsolationLevels" value="true" />
+	</bean>
+	<bean id="db1_sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="db1_dataSource" />
+		<property name="mapperLocations"
+			value="classpath*:com/hihsoft/db1/persistence/**/*.xml" />
+	</bean>
+
+	<bean id="db1MapperScannerConfigurer" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.hihsoft.db1.persistence" />
+		<property name="sqlSessionFactoryBeanName" value="db1_sqlSessionFactory" />
+	</bean>
+	<bean id="db2_sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="db2_dataSource" />
+		<property name="mapperLocations"
+			value="classpath*:com/hihsoft/db2/persistence/**/*.xml" />
+	</bean>
+
+	<bean id="db2MapperScannerConfigurer" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.hihsoft.db2.persistence" />
+		<property name="sqlSessionFactoryBeanName" value="db2_sqlSessionFactory" />
+	</bean>
+	<!-- mybatis日志打印 -->
+	<bean class="org.apache.ibatis.logging.LogFactory" init-method="useStdOutLogging"></bean>
+	<!-- spring jdbc ibatis mybatis初始化数据导入 -->
+	<jdbc:initialize-database data-source="db1_dataSource"
+		enabled="false" ignore-failures="ALL">
+		<jdbc:script location="classpath:/resources/dbcfg/initframework_db1.sql"
+			encoding="UTF-8" />
+	</jdbc:initialize-database>
+	<jdbc:initialize-database data-source="db2_dataSource"
+		enabled="false" ignore-failures="ALL">
+		<jdbc:script location="classpath:/resources/dbcfg/initframework_db2.sql"
+			encoding="UTF-8" />
+	</jdbc:initialize-database>
+	<!-- 扫描范围 -->
+	<context:component-scan base-package="com.hihsoft">
+		<context:exclude-filter type="annotation"
+			expression="org.springframework.stereotype.Controller" />
+	</context:component-scan>
+	<!-- 获取bean工具注入 -->
+</beans>
